@@ -1,0 +1,36 @@
+name: Gitleaks Secret Scan
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  gitleaks:
+    name: Run Gitleaks secret scanning
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # важливо для Gitleaks: бачити історію комітів
+          fetch-depth: 0
+
+      # Варіант через готовий GitHub Action для Gitleaks
+      - name: Run Gitleaks
+        uses: zricethezav/gitleaks-action@v2
+        with:
+          args: >
+            detect
+            --source .
+            --redact
+            --report-format sarif
+            --report-path gitleaks.sarif
+
+      # (Опціонально) завантажити звіт у Security → Code scanning
+      - name: Upload SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: gitleaks.sarif
