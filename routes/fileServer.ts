@@ -11,6 +11,27 @@ import * as security from '../lib/insecurity'
 import { challenges } from '../data/datacache'
 import * as challengeUtils from '../lib/challengeUtils'
 
+const FTP_BASE_DIR = path.resolve('ftp')
+
+function getSafeFtpPath(fileName: string): string | null {
+  if (!fileName) return null
+
+  // Блокуємо очевидні небезпечні патерни
+  if (fileName.includes('..') || path.isAbsolute(fileName) || fileName.includes('\\')) {
+    return null
+  }
+
+  // Канонічний шлях всередині ftp/
+  const fullPath = path.resolve(FTP_BASE_DIR, fileName)
+
+  // Гарантуємо, що ми не вилізли з FTP_BASE_DIR
+  if (!fullPath.startsWith(FTP_BASE_DIR + path.sep)) {
+    return null
+  }
+
+  return fullPath
+}
+
 export function servePublicFiles () {
   return ({ params, query }: Request, res: Response, next: NextFunction) => {
     const file = params.file
@@ -27,10 +48,24 @@ export function servePublicFiles () {
     if (file && (endsWithAllowlistedFileType(file) || (file === 'incident-support.kdbx'))) {
       file = security.cutOffPoisonNullByte(file)
 
-      challengeUtils.solveIf(challenges.directoryListingChallenge, () => { return file.toLowerCase() === 'acquisitions.md' })
+         challengeUtils.solveIf(challenges.directoryListingChallenge, () => { return file.toLowerCase() === 'acquisitions.md' })
       verifySuccessfulPoisonNullByteExploit(file)
 
-      res.sendFile(path.resolve('ftp/', file))
+      const safePath = getSafeFtpPath(file)
+      if (!safePath) {
+        res.status(400)
+        return next(new Error('Invalid file path'))
+      }
+
+      res.sendFile(safePath, (err) => {
+        if (err) {
+      
+          if ((err as any).code === 'ENOENT') {
+            return res.status(404).send('File not found')
+          }
+          return next(err)
+        }
+      })
     } else {
       res.status(403)
       next(new Error('Only .md and .pdf files are allowed!'))
