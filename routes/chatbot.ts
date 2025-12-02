@@ -114,8 +114,11 @@ async function processQuery (user: User, req: Request, res: Response, next: Next
         })
       }
     } else {
-      res.status(200).json(response)
-    }
+  if (response && typeof response.body === 'string') {
+    response.body = security.sanitizeHtml(response.body)
+  }
+  res.status(200).json(response)
+}
   } catch (err) {
     try {
       await bot.respond(testCommand, `${user.id}`)
@@ -198,15 +201,24 @@ export const status = function status () {
       return
     }
 
-    try {
-      bot.addUser(`${user.id}`, username)
-      res.status(200).json({
-        status: bot.training.state,
-        body: bot.training.state ? bot.greet(`${user.id}`) : `${config.get<string>('application.chatBot.name')} isn't ready at the moment, please wait while I set things up`
-      })
-    } catch (err) {
-      next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
-    }
+  try {
+  bot.addUser(`${user.id}`, username)
+
+  let body: string
+  if (bot.training.state) {
+    const rawGreeting = bot.greet(`${user.id}`)
+    body = security.sanitizeHtml(rawGreeting)
+  } else {
+    body = `${config.get<string>('application.chatBot.name')} isn't ready at the moment, please wait while I set things up`
+  }
+
+  res.status(200).json({
+    status: bot.training.state,
+    body
+  })
+} catch (err) {
+  next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
+}
   }
 }
 
