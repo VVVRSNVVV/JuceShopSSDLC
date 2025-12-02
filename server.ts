@@ -266,21 +266,20 @@ restoreOverwrittenFilesWithOriginals().then(() => {
 
   // vuln-code-snippet start directoryListingChallenge accessLogDisclosureChallenge
   /* /ftp directory browsing and file download */ // vuln-code-snippet neutral-line directoryListingChallenge
-  app.use('/ftp', serveIndexMiddleware, serveIndex('ftp', { icons: true })) // vuln-code-snippet vuln-line directoryListingChallenge
+  //app.use('/ftp', serveIndexMiddleware, serveIndex('ftp', { icons: true })) // vuln-code-snippet vuln-line directoryListingChallenge
   app.use('/ftp(?!/quarantine)/:file', servePublicFiles()) // vuln-code-snippet vuln-line directoryListingChallenge
   app.use('/ftp/quarantine/:file', serveQuarantineFiles()) // vuln-code-snippet neutral-line directoryListingChallenge
 
-  app.use('/.well-known', serveIndexMiddleware, serveIndex('.well-known', { icons: true, view: 'details' }))
-  app.use('/.well-known', express.static('.well-known'))
+// disable directory listing
+app.use('/.well-known', express.static('.well-known'))
 
   /* /encryptionkeys directory browsing */
-  app.use('/encryptionkeys', serveIndexMiddleware, serveIndex('encryptionkeys', { icons: true, view: 'details' }))
-  app.use('/encryptionkeys/:file', serveKeyFiles())
+// disable directory listing
+app.use('/encryptionkeys/:file', security.isAuthorized(), serveKeyFiles())
 
   /* /logs directory browsing */ // vuln-code-snippet neutral-line accessLogDisclosureChallenge
-  app.use('/support/logs', serveIndexMiddleware, serveIndex('logs', { icons: true, view: 'details' })) // vuln-code-snippet vuln-line accessLogDisclosureChallenge
-  app.use('/support/logs', verify.accessControlChallenges()) // vuln-code-snippet hide-line
-  app.use('/support/logs/:file', serveLogFiles()) // vuln-code-snippet vuln-line accessLogDisclosureChallenge
+ // disable directory listing
+app.use('/support/logs/:file', security.isAuthorized(), serveLogFiles())
 
   /* Swagger documentation for B2B v2 endpoints */
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument))
@@ -335,11 +334,14 @@ restoreOverwrittenFilesWithOriginals().then(() => {
   // vuln-code-snippet start resetPasswordMortyChallenge
   /* Rate limiting */
   app.enable('trust proxy')
-  app.use('/rest/user/reset-password', rateLimit({
-    windowMs: 5 * 60 * 1000,
-    max: 100,
-    keyGenerator ({ headers, ip }: { headers: any, ip: any }) { return headers['X-Forwarded-For'] ?? ip } // vuln-code-snippet vuln-line resetPasswordMortyChallenge
-  }))
+app.use('/rest/user/reset-password', rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 100,
+  keyGenerator (req: Request): string {
+    // повертаємо гарантовано string
+    return req.ip ?? 'unknown-ip'
+  }
+}))
   // vuln-code-snippet end resetPasswordMortyChallenge
 
   // vuln-code-snippet start changeProductChallenge
@@ -710,7 +712,17 @@ logger.info(`Entity models ${colors.bold(Object.keys(sequelize.models).length.to
 /* Serve metrics */
 let metricsUpdateLoop: any
 const Metrics = metrics.observeMetrics() // vuln-code-snippet neutral-line exposedMetricsChallenge
-app.get('/metrics', metrics.serveMetrics()) // vuln-code-snippet vuln-line exposedMetricsChallenge
+app.get('/metrics',
+  security.isAuthorized(),        // користувач має бути залогінений
+  (req, res, next) => {
+    const decoded = security.decode(utils.jwtFrom(req))
+    if (decoded?.data?.role !== 'admin') {
+      return res.status(403).json({ error: 'Forbidden' })
+    }
+    next()
+  },
+  metrics.serveMetrics()
+)// vuln-code-snippet vuln-line exposedMetricsChallenge
 errorhandler.title = `${config.get<string>('application.name')} (Express ${utils.version('express')})`
 
 export async function start (readyCallback?: () => void) {
