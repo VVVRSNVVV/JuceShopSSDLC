@@ -19,6 +19,7 @@ import validateChatBot from '../lib/startup/validateChatBot'
 import * as security from '../lib/insecurity'
 import * as botUtils from '../lib/botUtils'
 import { challenges } from '../data/datacache'
+import { sanitizeHtml } from '../lib/insecurity'
 
 let trainingFile = config.get<string>('application.chatBot.trainingData')
 let testCommand: string
@@ -63,14 +64,21 @@ async function processQuery (user: User, req: Request, res: Response, next: Next
 
   if (!bot.factory.run(`currentUser('${user.id}')`)) {
     try {
-      bot.addUser(`${user.id}`, username)
-      res.status(200).json({
-        action: 'response',
-        body: bot.greet(`${user.id}`)
-      })
-    } catch (err) {
-      next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
-    }
+  bot.addUser(`${user.id}`, username)
+
+  const rawBody = bot.training.state
+    ? bot.greet(`${user.id}`)
+    : `${config.get<string>('application.chatBot.name')} isn't ready at the moment, please wait while I set things up`
+
+  const safeBody = sanitizeHtml(rawBody)
+
+  res.status(200).json({
+    status: bot.training.state,
+    body: safeBody
+  })
+} catch (err) {
+  next(new Error('Blocked illegal activity by ' + req.socket.remoteAddress))
+}
     return
   }
 
