@@ -51,14 +51,24 @@ export const getVideo = () => {
 export const promotionVideo = () => {
   return (req: Request, res: Response) => {
     fs.readFile('views/promotionVideo.pug', function (err, buf) {
-      if (err != null) throw err
+      if (err != null) {
+        // не валимо весь процес, а віддаємо 500
+        res.status(500).send('Unable to load promotion video template')
+        return
+      }
+
       let template = buf.toString()
       const subs = getSubsFromFile()
 
-      challengeUtils.solveIf(challenges.videoXssChallenge, () => { return utils.contains(subs, '</script><script>alert(`xss`)</script>') })
+      // челендж все ще працює: шукаємо payload в subs
+      challengeUtils.solveIf(
+        challenges.videoXssChallenge,
+        () => { return utils.contains(subs, '</script><script>alert(`xss`)</script>') }
+      )
 
       const themeKey = config.get<string>('application.theme') as keyof typeof themes
       const theme = themes[themeKey] || themes['bluegrey-lightgreen']
+
       template = template.replace(/_title_/g, entities.encode(config.get<string>('application.name')))
       template = template.replace(/_favicon_/g, favicon())
       template = template.replace(/_bgColor_/g, theme.bgColor)
@@ -66,12 +76,21 @@ export const promotionVideo = () => {
       template = template.replace(/_navColor_/g, theme.navColor)
       template = template.replace(/_primLight_/g, theme.primLight)
       template = template.replace(/_primDark_/g, theme.primDark)
+
       const fn = pug.compile(template)
       let compiledTemplate = fn()
-      compiledTemplate = compiledTemplate.replace('<script id="subtitle"></script>', '<script id="subtitle" type="text/vtt" data-label="English" data-lang="en">' + subs + '</script>')
+
+      // 🔒 БІЛЬШЕ НЕ ВСТАВЛЯЄМО subs усередину <script>…</script>,
+      // лише залишаємо «порожній» тег з атрибутами
+      compiledTemplate = compiledTemplate.replace(
+        '<script id="subtitle"></script>',
+        '<script id="subtitle" type="text/vtt" data-label="English" data-lang="en"></script>'
+      )
+
       res.send(compiledTemplate)
     })
   }
+
   function favicon () {
     return utils.extractFilename(config.get('application.favicon'))
   }
