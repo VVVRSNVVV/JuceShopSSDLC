@@ -24,17 +24,37 @@ export function servePublicFiles () {
   }
 
   function verify (file: string, res: Response, next: NextFunction) {
-    if (file && (endsWithAllowlistedFileType(file) || (file === 'incident-support.kdbx'))) {
-      file = security.cutOffPoisonNullByte(file)
-
-      challengeUtils.solveIf(challenges.directoryListingChallenge, () => { return file.toLowerCase() === 'acquisitions.md' })
-      verifySuccessfulPoisonNullByteExploit(file)
-
-      res.sendFile(path.resolve('ftp/', file))
-    } else {
-      res.status(403)
-      next(new Error('Only .md and .pdf files are allowed!'))
+    if (!file) {
+      res.status(400)
+      return next(new Error('File name is required'))
     }
+
+    // 1) спочатку ріжемо null-byte
+    let safeFile = security.cutOffPoisonNullByte(file)
+
+    // 2) перевіряємо allowlist по розширеннях
+    if (!(endsWithAllowlistedFileType(safeFile) || safeFile === 'incident-support.kdbx')) {
+      res.status(403)
+      return next(new Error('Only .md and .pdf files are allowed!'))
+    }
+
+    // 3) канонічний шлях + перевірка, що файл всередині ftp/
+    const baseDir = path.resolve('ftp')
+    const requestedPath = path.resolve(baseDir, safeFile)
+
+    const relative = path.relative(baseDir, requestedPath)
+    if (relative.startsWith('..') || path.isAbsolute(relative)) {
+      res.status(403)
+      return next(new Error('Access denied'))
+    }
+
+    // 4) juice shop challenge logic
+    const lower = safeFile.toLowerCase()
+    challengeUtils.solveIf(challenges.directoryListingChallenge, () => lower === 'acquisitions.md')
+    verifySuccessfulPoisonNullByteExploit(lower)
+
+    // 5) безпечна відповідь
+    res.sendFile(requestedPath)
   }
 
   function verifySuccessfulPoisonNullByteExploit (file: string) {
