@@ -24,7 +24,7 @@ import robots from 'express-robots-txt'
 import cookieParser from 'cookie-parser'
 import * as Prometheus from 'prom-client'
 import swaggerUi from 'swagger-ui-express'
-import featurePolicy from 'feature-policy'
+//import featurePolicy from 'feature-policy'
 import { IpFilter } from 'express-ipfilter'
 // @ts-expect-error FIXME due to non-existing type definitions for express-security.txt
 import securityTxt from 'express-security.txt'
@@ -182,15 +182,54 @@ restoreOverwrittenFilesWithOriginals().then(() => {
   app.use(cors())
 
   /* Security middleware */
+  /* Security middleware */
   app.use(helmet.noSniff())
-  app.use(helmet.frameguard())
+  app.use(helmet.frameguard({ action: 'sameorigin' }))
   // app.use(helmet.xssFilter()); // = no protection from persisted XSS via RESTful API
   app.disable('x-powered-by')
-  app.use(featurePolicy({
-    features: {
-      payment: ["'self'"]
+
+
+  app.use(helmet.contentSecurityPolicy({
+    useDefaults: true,
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: [
+        "'self'",
+        "'unsafe-inline'",
+        "'unsafe-eval'",
+        'https://cdnjs.cloudflare.com',
+        'https://code.getmdl.io'
+      ],
+      styleSrc: [
+        "'self'",
+        "'unsafe-inline'",
+        'https://cdnjs.cloudflare.com',
+        'https://fonts.googleapis.com'
+      ],
+      imgSrc: [
+        "'self'",
+        'data:',
+        'https://*'
+      ],
+      fontSrc: [
+        "'self'",
+        'https://fonts.gstatic.com',
+        'data:'
+      ],
+      connectSrc: [
+        "'self'",
+        'ws:',
+        'wss:'
+      ],
+      frameAncestors: ["'self'"]
     }
   }))
+
+
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('Permissions-Policy', 'payment=(self)')
+    next()
+  })
 
   /* Hiring header */
   app.use((req: Request, res: Response, next: NextFunction) => {
