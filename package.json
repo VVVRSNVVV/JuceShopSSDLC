@@ -158,6 +158,7 @@
     "jssha": "^3.3.1",
     "juicy-chat-bot": "~0.9.0",
     "libxmljs2": "~0.37.0",
+    "lodash": "^4.17.21",
     "marsdb": "^0.6.11",
     "median": "^0.0.2",
     "morgan": "^1.10.0",
@@ -172,7 +173,7 @@
     "pug": "^3.0.3",
     "replace": "^1.2.2",
     "sanitize-filename": "^1.6.3",
-    "sanitize-html": "1.4.2",
+    "sanitize-html": "^2.17.0",
     "semver": "^7.6.3",
     "sequelize": "^6.37.3",
     "serve-index": "^1.9.1",
@@ -188,7 +189,8 @@
     "z85": "^0.0.2"
   },
   "devDependencies": {
-    "@cyclonedx/cyclonedx-npm": "^2.0.0||^3.0.0",
+    "@cyclonedx/bom": "^4.1.3",
+    "@cyclonedx/cyclonedx-npm": "^3.1.0",
     "@istanbuljs/nyc-config-typescript": "^1.0.2",
     "@types/chai": "^4.3.20",
     "@types/clarinet": "^0.12.3",
