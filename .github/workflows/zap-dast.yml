@@ -2,45 +2,52 @@ name: OWASP ZAP DAST
 
 on:
   push:
-    branches:
-      - main
+    branches: [ "main" ]
   pull_request:
-    branches:
-      - main
+    branches: [ "main" ]
+  workflow_dispatch: {}
 
 jobs:
   zap_scan:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: read   # обовʼязково
-      issues: none     # забороняємо створення Issue
+      contents: read
+      issues: none
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
       - name: Start Juice Shop (Docker)
         run: |
           docker run -d --name juice-shop -p 3000:3000 bkimminich/juice-shop
-          # чекаємо поки сайт реально запуститься
+
+          # Чекаємо доки Juice Shop реально відповідає HTTP 200
+          ok=0
           for i in {1..30}; do
-            if curl -sSf http://localhost:3000 >/dev/null 2>&1; then
+            if curl -sSf http://localhost:3000/ >/dev/null 2>&1; then
               echo "Juice Shop is UP"
+              ok=1
               break
             fi
-            echo "Waiting..."
+            echo "Waiting... ($i/30)"
             sleep 5
           done
+
+          # Якщо не піднявся — валимо джобу
+          test "$ok" -eq 1
 
       - name: Run OWASP ZAP Baseline Scan
         uses: zaproxy/action-baseline@v0.12.0
         with:
-          target: 'http://localhost:3000'
-          cmd_options: '-a -I'   # -I забороняє створювати GitHub Issue
+          target: "http://localhost:3000"
+          cmd_options: "-a -I"
+          artifact_name: "zap-report"
 
-      - name: Upload ZAP Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: zap-report
-          path: zap_report.html
+      - name: Stop Juice Shop
+        if: always()
+        run: |
+          docker rm -f juice-shop || true
