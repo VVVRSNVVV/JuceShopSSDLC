@@ -7,12 +7,13 @@ import fs from 'node:fs'
 import crypto from 'node:crypto'
 import { type Request, type Response, type NextFunction } from 'express'
 import { type UserModel } from 'models/user'
-import expressJwt from 'express-jwt'
 import jwt from 'jsonwebtoken'
 import jws from 'jws'
 import sanitizeHtmlLib from 'sanitize-html'
 import sanitizeFilenameLib from 'sanitize-filename'
 import * as utils from './utils'
+
+import { expressjwt } from 'express-jwt'
 
 /* jslint node: true */
 // eslint-disable-next-line @typescript-eslint/prefer-ts-expect-error
@@ -20,8 +21,8 @@ import * as utils from './utils'
 import * as z85 from 'z85'
 
 // Шляхи до ключів беремо з env, з дефолтами
-const jwtPrivateKeyPath = process.env.JWT_PRIVATE_KEY_FILE || 'encryptionkeys/jwtRS256-private.key'
-const jwtPublicKeyPath = process.env.JWT_PUBLIC_KEY_FILE || 'encryptionkeys/jwt.pub'
+const jwtPrivateKeyPath = process.env.JWT_PRIVATE_KEY_FILE ?? 'encryptionkeys/jwtRS256-private.key'
+const jwtPublicKeyPath = process.env.JWT_PUBLIC_KEY_FILE ?? 'encryptionkeys/jwt.pub'
 
 // Публічний ключ (для verify)
 export const publicKey = fs
@@ -41,7 +42,7 @@ try {
 }
 
 // HMAC secret теж з env
-const hmacSecret = process.env.HMAC_SECRET || 'insecure-dev-hmac-secret'
+const hmacSecret = process.env.HMAC_SECRET ?? 'insecure-dev-hmac-secret'
 
 export const hash = (data: string) =>
   crypto.createHash('md5').update(data).digest('hex')
@@ -67,9 +68,6 @@ interface IAuthenticatedUsers {
   updateFrom: (req: Request, user: ResponseWithUser) => any
 }
 
-
-
-
 export const cutOffPoisonNullByte = (str: string) => {
   const nullByte = '%00'
   if (utils.contains(str, nullByte)) {
@@ -78,8 +76,12 @@ export const cutOffPoisonNullByte = (str: string) => {
   return str
 }
 
-export const isAuthorized = () => expressJwt(({ secret: publicKey }) as any)
-export const denyAll = () => expressJwt({ secret: '' + Math.random() } as any)
+export const isAuthorized = () =>
+  expressjwt({ secret: publicKey, algorithms: ['RS256'] })
+
+export const denyAll = () =>
+  expressjwt({ secret: crypto.randomBytes(32), algorithms: ['HS256'] })
+
 export const authorize = (user = {}) => jwt.sign(user, privateKey, { expiresIn: '6h', algorithm: 'RS256' })
 export const verify = (token: string) => token ? (jws.verify as ((token: string, secret: string) => boolean))(token, publicKey) : false
 export const decode = (token: string) => { return jws.decode(token)?.payload }
@@ -169,7 +171,6 @@ export const isRedirectAllowed = (rawUrl: string) => {
     return false
   }
 
-  
   return redirectAllowlist.has(url)
 }
 // vuln-code-snippet end redirectCryptoCurrencyChallenge redirectChallenge
