@@ -65,3 +65,12 @@ config/*.yml
 
 # System Files
 .DS_Store
+
+# local security artifacts
+bom-root.json
+zap_report.html
+security/npm-audit.json
+gen.conf
+
+# local keys
+encryptionkeys/jwtRS256-private.key
