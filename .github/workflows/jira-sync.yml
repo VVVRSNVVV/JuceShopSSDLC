@@ -1,0 +1,27 @@
+name: Create Jira Issues from GitHub Code Scanning
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 * * * *"   # раз на годину перевіряє нові алерти
+
+permissions:
+  actions: read
+  security-events: read
+  contents: read
+  pull-requests: read
+
+jobs:
+  create_jira_issues:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Fetch Code Scanning Alerts
+        id: alerts
+        uses: advanced-security/ghas-to-jira@v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          jira-token: ${{ secrets.JIRA_INTEGRATION }}
+          jira-base-url: "https://vvrsn.atlassian.net"
+          jira-email: "slava.rusin@ukr.net"
+          jira-project: "TEST"
